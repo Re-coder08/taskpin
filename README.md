@@ -18,7 +18,7 @@ TaskPin is a VS Code extension designed to help developers manage their tasks se
 To install TaskPin, follow these steps:
 
 1. **Clone the Repository:**
-   ```bash
+   ```
    git clone https://github.com/your-username/taskpin.git
    cd taskpin
    ```
@@ -106,5 +106,3 @@ We appreciate your contributions and look forward to collaborating with you to i
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 ```
-
-Feel free to adjust the repository URL and any other details as necessary.
