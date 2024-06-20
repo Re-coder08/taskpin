@@ -8,11 +8,12 @@ export interface Task {
   line: number;
   task: string;
   title: string;
-  priority?: 'L' | 'M' | 'H';
-  status: 'B' | 'IP' | 'C';
+  priority: 'L' | 'M' | 'H';  // Changed to non-optional and ensured default
   createdDate: Date;
   tags: string[];
   starred: boolean;
+  isComplete: boolean;
+  isInProgress: boolean;
 }
 
 export class TaskManager {
@@ -41,10 +42,11 @@ export class TaskManager {
           task: parts[3],
           title: parts[4],
           priority: parts[5] as 'L' | 'M' | 'H',
-          status: parts[6] as 'B' | 'IP' | 'C',
-          createdDate: new Date(parts[7]),
-          tags: parts[8] ? parts[8].split(' ') : [],
-          starred: parts[9] === 'true',
+          createdDate: new Date(parts[6]),
+          tags: parts[7] ? parts[7].split(' ') : [],
+          starred: parts[8] === 'true',
+          isComplete: parts[9] === 'true',
+          isInProgress: parts[10] === 'true'
         };
       });
     }
@@ -58,10 +60,11 @@ export class TaskManager {
       task.task,
       task.title,
       task.priority,
-      task.status,
       task.createdDate.toISOString(),
       task.tags.join(' '),
       task.starred,
+      task.isComplete,
+      task.isInProgress
     ].join(',')).join('\n');
     fs.writeFileSync(this.tasksFilePath, fileContent);
   }
@@ -106,23 +109,30 @@ export class TaskManager {
   }
 
   private parseTask(description: string, file: string, line: number): Task | null {
-    const parts = description.split(' ');
+    const parts = description.split('|');
     if (parts.length < 1) {
       return null;
     }
 
-    const title = parts[0];
-    let priority: 'L' | 'M' | 'H' | undefined;
+    const title = parts[0].trim();
+    let priority: 'L' | 'M' | 'H' = 'L';  // Set default priority to 'L'
     let tags: string[] = [];
     let starred = false;
+    let isComplete = false;
+    let isInProgress = false;
 
     parts.slice(1).forEach(part => {
-      if (['L', 'M', 'H'].includes(part)) {
-        priority = part as 'L' | 'M' | 'H';
-      } else if (part.startsWith('#')) {
-        tags.push(part.substring(1));
-      } else if (part.toLowerCase() === 'starred') {
+      const trimmedPart = part.trim();
+      if (['L', 'M', 'H'].includes(trimmedPart)) {
+        priority = trimmedPart as 'L' | 'M' | 'H';
+      } else if (trimmedPart.startsWith('#')) {
+        tags.push(trimmedPart.substring(1));
+      } else if (trimmedPart.toLowerCase() === 'starred') {
         starred = true;
+      } else if (trimmedPart.toUpperCase() === 'C') {
+        isComplete = true;
+      } else if (trimmedPart.toUpperCase() === 'IP') {
+        isInProgress = true;
       }
     });
 
@@ -133,10 +143,11 @@ export class TaskManager {
       task: description,
       title,
       priority,
-      status: 'B', // Default status to Backlog
       createdDate: new Date(),
       tags,
       starred,
+      isComplete,
+      isInProgress
     };
 
     return task;
@@ -155,14 +166,14 @@ export class TaskManager {
     return task;
   }
 
-  deleteTask(id: string): boolean {
-    const index = this.tasks.findIndex(t => t.id === id);
-    if (index !== -1) {
-      this.tasks.splice(index, 1);
+  updateTaskStatus(id: string, status: 'C' | 'IP'): Task | undefined {
+    const task = this.tasks.find(t => t.id === id);
+    if (task) {
+      task.isComplete = status === 'C';
+      task.isInProgress = status === 'IP';
       this.saveTasksToFile();
-      return true;
     }
-    return false;
+    return task;
   }
 }
 

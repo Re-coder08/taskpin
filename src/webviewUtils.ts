@@ -25,8 +25,8 @@ export function openTaskPanel(context: vscode.ExtensionContext) {
         case 'starTask':
           starTask(message.task);
           return;
-        case 'deleteTask':
-          deleteTask(message.task);
+        case 'updateStatus':
+          updateStatus(message.task, message.status, panel);
           return;
       }
     },
@@ -63,12 +63,24 @@ function starTask(task: Task) {
   // Optionally, update the webview to reflect the change
 }
 
-function deleteTask(task: Task) {
-  const success = taskManager.deleteTask(task.id);
-  if (success) {
-    vscode.window.showInformationMessage(`Task deleted: ${task.title}`);
-    // Optionally, update the webview to reflect the change
-  } else {
-    vscode.window.showErrorMessage(`Failed to delete task: ${task.title}`);
-  }
+function updateStatus(task: Task, status: 'C' | 'IP', panel: vscode.WebviewPanel) {
+  console.log(`Updating task status for task: ${task.title}, new status: ${status === 'C' ? 'Completed' : 'In Progress'}`);
+
+  vscode.workspace.openTextDocument(task.file).then(document => {
+    vscode.window.showTextDocument(document).then(editor => {
+      const line = editor.document.lineAt(task.line - 1);
+      let updatedComment = line.text.replace(/\s*[C|IP]$/, '').trim(); // Remove existing status tags if present
+      updatedComment += ` | ${status}`;
+
+      editor.edit(editBuilder => {
+        editBuilder.replace(line.range, updatedComment);
+      }).then(() => {
+        vscode.window.showInformationMessage(`Task status updated to ${status === 'C' ? 'Completed' : 'In Progress'}: ${task.title}`);
+        const updatedTask = taskManager.updateTaskStatus(task.id, status);
+        taskManager.scanForTaskPins().then(tasks => {
+          panel.webview.postMessage({ command: 'updateTasks', tasks });
+        });
+      });
+    });
+  });
 }
