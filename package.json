@@ -3,7 +3,7 @@
   "displayName": "TaskPin",
   "description": "A VS Code extension to pin and manage your tasks seamlessly within the editor.",
   "version": "1.0.0",
-  "publisher": "your-publisher-id",
+  "publisher": "y7vso3u2kqcbk76qkrt7d7j6nfwnqobcd54ybb3jedsm5u4rrndq",
   "engines": {
     "vscode": "^1.90.0"
   },
