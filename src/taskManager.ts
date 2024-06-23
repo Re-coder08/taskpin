@@ -8,12 +8,17 @@ export interface Task {
   line: number;
   task: string;
   title: string;
-  priority: 'L' | 'M' | 'H';  // Changed to non-optional and ensured default
+  priority: 'L' | 'M' | 'H';
   createdDate: Date;
   tags: string[];
   starred: boolean;
   isComplete: boolean;
   isInProgress: boolean;
+}
+
+export interface FileChange {
+  uri: vscode.Uri;
+  // Other properties can be added here if needed
 }
 
 export class TaskManager {
@@ -76,15 +81,10 @@ export class TaskManager {
       return [];
     }
 
-    console.log('Scanning for task pins in workspace:', rootPath);
-
-    const files = await vscode.workspace.findFiles('**/*.{ts,js,tsx,jsx}');
-    console.log('Files found:', files);
-
+    const changedFiles = await this.getChangedFiles();
     const tasks: Task[] = [];
 
-    for (const file of files) {
-      console.log('Processing file:', file.fsPath);
+    for (const file of changedFiles) {
       const document = await vscode.workspace.openTextDocument(file);
       const text = document.getText();
       const lines = text.split('\n');
@@ -101,11 +101,44 @@ export class TaskManager {
       });
     }
 
-    console.log('Tasks found:', tasks);
-
     this.tasks = tasks;
     this.saveTasksToFile();
     return tasks;
+  }
+
+  private async getChangedFiles(): Promise<vscode.Uri[]> {
+    try {
+      const gitExtension = vscode.extensions.getExtension('vscode.git');
+      if (!gitExtension) {
+        vscode.window.showErrorMessage('Git extension is not available.');
+        return [];
+      }
+      const api = gitExtension.isActive ? gitExtension.exports.getAPI(1) : await gitExtension.activate().then(() => gitExtension.exports.getAPI(1));
+
+      if (!api) {
+        vscode.window.showErrorMessage('Git API not found.');
+        return [];
+      }
+
+      const repository = api.repositories[0];
+      if (!repository) {
+        vscode.window.showErrorMessage('No Git repository found.');
+        return [];
+      }
+
+      const status = repository.state.workingTreeChanges;
+      if (!status) {
+        vscode.window.showErrorMessage('Failed to get working tree changes.');
+        return [];
+      }
+
+      console.log('Changed files:', status);
+      return status.map((change: FileChange) => change.uri);
+    } catch (error) {
+      vscode.window.showErrorMessage('Failed to get changed files from Git: ' + error);
+      console.error('Error in getChangedFiles:', error);
+      return [];
+    }
   }
 
   private parseTask(description: string, file: string, line: number): Task | null {
@@ -115,7 +148,7 @@ export class TaskManager {
     }
 
     const title = parts[0].trim();
-    let priority: 'L' | 'M' | 'H' = 'L';  // Set default priority to 'L'
+    let priority: 'L' | 'M' | 'H' = 'L';
     let tags: string[] = [];
     let starred = false;
     let isComplete = false;
@@ -174,6 +207,29 @@ export class TaskManager {
       this.saveTasksToFile();
     }
     return task;
+  }
+
+  reorderTasks(order: string[]) {
+    this.tasks.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+    this.saveTasksToFile();
+  }
+
+  async removeTask(task: Task) {
+    this.tasks = this.tasks.filter(t => t.id !== task.id);
+    this.saveTasksToFile();
+    await this.removeTaskComment(task);
+  }
+
+  private async removeTaskComment(task: Task) {
+    const document = await vscode.workspace.openTextDocument(task.file);
+    const editor = await vscode.window.showTextDocument(document);
+    const line = document.lineAt(task.line - 1);
+
+    await editor.edit(editBuilder => {
+      editBuilder.delete(line.range);
+    });
+
+    vscode.window.showInformationMessage(`Task removed: ${task.title}`);
   }
 }
 
